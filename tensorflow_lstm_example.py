@@ -72,6 +72,7 @@ def RNN(x, weights, biases):
     # ********************************************
     stacked_rnn = []
     for iiLyr in range(layer_num):
+        # forget_bias：forget gate的初始值，1为全部都不忘记
         lstm_cell = rnn.BasicLSTMCell(n_hidden, forget_bias=1.0)
         lstm_cell = rnn.DropoutWrapper(cell=lstm_cell, input_keep_prob=1.0, output_keep_prob=keep_prob)
         stacked_rnn.append(lstm_cell)
@@ -81,6 +82,7 @@ def RNN(x, weights, biases):
     # ********************************************
     # Get lstm cell output
     # outputs, states = rnn.static_rnn(lstm_cell, x, dtype=tf.float32)
+    # dynaminc_rnn比rnn要好
     outputs, states = tf.nn.dynamic_rnn(mlstm_cell, inputs = x, initial_state=init_state, time_major=False)
    
 
@@ -102,6 +104,7 @@ init = tf.global_variables_initializer()
 
 # Launch the graph
 with tf.Session() as sess:
+    # writer = tf.train.SummaryWriter("logs",sess.graph)
     sess.run(init)
     step = 1
     # Keep training until reach max iterations
