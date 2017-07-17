@@ -102,16 +102,6 @@ with tf.Session() as sess:
 
     # Keep training until reach max iterations
     while step < 1000:
-        # batchx, batchy = sess.run([batch_x,batch_y])
-        # print(batchx.eval())
-        # print(2)
-        # Reshape data to get 28 seq of 28 elements
-        # batchx = batchx.reshape([batch_size, n_steps, n_input])
-        # batchy = batchy.reshape([batch_size, n_steps, n_output])
-        # if step == 1:
-        #     feed_dict = {x: batchx, y: batchy}
-        # else:
-        #     feed_dict = {x: batchx, y: batchy, }
         batchx, batchy = get_batch()
         sess.run(optimizer, feed_dict={x: batchx, y: batchy})
         # print(3)
@@ -127,13 +117,6 @@ with tf.Session() as sess:
 
     print("Optimization Finished!")
 
-    # test_x = col[:,0:18]
-    # test_y = col[:,18:81]
-    # test_x = test_x[0:10140]
-    # test_y = test_y[0:10140]
-    # test_x = tf.reshape(test_x,[-1, n_steps, n_input])
-    # test_y = tf.reshape(test_y,[-1, n_steps, n_output])
-    # testx, testy = sess.run([test_x,test_y])
     batch_start = 0
     testx, testy = get_batch()
     # np.savetxt('testx.csv', testx)

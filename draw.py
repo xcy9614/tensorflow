@@ -4,7 +4,7 @@ import time
 import numpy as np
 from matplotlib import pyplot as plt
 
-f = open('erdongzuo1', 'r')
+f = open('predict', 'r')
 end = 1200
 img = np.zeros((200,200,3), np.uint8)
  

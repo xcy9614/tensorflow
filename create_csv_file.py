@@ -9,6 +9,7 @@ def ReadActionInfo(file_name):
     file = open('res/'+file_name)
     lines = file.readlines()
     action_info_index = len(action_info)-1
+    # print(len(lines))
     for i in range(len(lines)):
         if i % 3 == 0:
             # 确定帧数
@@ -31,8 +32,10 @@ def ReadActionInfo(file_name):
     file.close()
 
 def ReadVoiceInfo(file_name):
+    
     file = open('data1/'+file_name)
     lines = file.readlines()
+    # print(len(lines))
     for line in lines:
         line = line.replace('\n','')
         s = json.loads(line)
@@ -40,7 +43,10 @@ def ReadVoiceInfo(file_name):
     file.close()
 
 def WriteCsv():
+    # print(len(action_info))
+    # print(len(voice_info))
     for i in range(len(action_info)):
+        # print(i)
         info.append(voice_info[i]+action_info[i])
     # print(info[0])
     csvfile = open('train.csv','w',newline='')
@@ -61,8 +67,10 @@ def ReadTestVoiceInfo(file_name):
     mywriter.writerows(test_voice_info)
     csvfile.close()
 
-for i in range(6):
-    ReadActionInfo('erdongzuo'+str(i))
-    ReadVoiceInfo(str(i)+'.txt')
+for i in range(13):
+    # print('i'+str(i+1))
+    ReadActionInfo(str(i+1))
+    ReadVoiceInfo(str(i+1)+'.txt')
+
 WriteCsv()
-ReadTestVoiceInfo('data1/0.txt')
+# ReadTestVoiceInfo('data1/0.txt')

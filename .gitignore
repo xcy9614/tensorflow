@@ -1,5 +1,6 @@
-data1.zip
 data1
 *.csv
 *.zip
 res
+logs
+save
