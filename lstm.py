@@ -13,45 +13,38 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-# BATCH_START = 0
+BATCH_START = 0
 TIME_STEPS = 30
-BATCH_SIZE = 32
+BATCH_SIZE = 16
 INPUT_SIZE = 18
 OUTPUT_SIZE = 63
 CELL_SIZE = 10
-LR = 0.006
+LR = 0.001
+col = [[] for i in range(81)]
+col = np.loadtxt('train.csv', delimiter=',')
 
+def get_batch():
+    global BATCH_SIZE
+    global BATCH_START
+    global TIME_STEPS
+    global col
+    # print(len(col))
+    batch_num = int(len(col)/BATCH_SIZE)
+    features = col[:,0:18]
+    labels = col[:,18:81]
+    features_batch = []
+    labels_batch = []
+    for i in range(BATCH_SIZE):
+        start_num = (batch_num*i + BATCH_START) % len(col)
+        # print(start_num)
+        if (start_num + TIME_STEPS) >= len(col):
+            start_num = (start_num+TIME_STEPS) % len(col)
+        # print(start_num)
+        features_batch.append(features[start_num:(start_num+TIME_STEPS)])
+        labels_batch.append(labels[start_num:(start_num+TIME_STEPS)])
+    # shape => (batch_size, n_steps, n_input/n_output)
+    return features_batch, labels_batch
 
-# def get_batch():
-#     global BATCH_START, TIME_STEPS
-#     # xs shape (50batch, 20steps)
-#     xs = np.arange(BATCH_START, BATCH_START+TIME_STEPS*BATCH_SIZE).reshape((BATCH_SIZE, TIME_STEPS)) / (10*np.pi)
-#     seq = np.sin(xs)
-#     res = np.cos(xs)
-#     BATCH_START += TIME_STEPS
-#     # plt.plot(xs[0, :], res[0, :], 'r', xs[0, :], seq[0, :], 'b--')
-#     # plt.show()
-#     # returned seq, res and xs: shape (batch, step, input)
-#     return [seq[:, :, np.newaxis], res[:, :, np.newaxis], xs]
-
-
-def readMyFileFormat(file_name_queue):
-    reader = tf.TextLineReader()
-    key, value = reader.read(file_name_queue)
-
-    record_defaults = [[0.] for i in range(81)]
-    col = [[]for i in range(81)]
-    col = tf.decode_csv(value,record_defaults=record_defaults)
-    features = tf.stack(col[0:18])
-    label = tf.stack(col[18:81])
-
-    return features, label
-
-def inputPipeLine(fileNames = ['train.csv'], batchSize = 4, numEpochs = None):
-    file_name_queue = tf.train.string_input_producer(fileNames, num_epochs = numEpochs)
-    example, label = readMyFileFormat(file_name_queue)
-    example_batch, label_batch = tf.train.batch([example, label], batch_size = batchSize)
-    return example_batch, label_batch
 
 class LSTMRNN(object):
     def __init__(self, n_steps, input_size, output_size, cell_size, batch_size):
@@ -103,23 +96,9 @@ class LSTMRNN(object):
             self.pred = tf.matmul(l_out_x, Ws_out) + bs_out
 
     def compute_cost(self):
-        losses = tf.contrib.legacy_seq2seq.sequence_loss_by_example(
-            [tf.reshape(self.pred, [-1], name='reshape_pred')],
-            [tf.reshape(self.ys, [-1], name='reshape_target')],
-            [tf.ones([self.batch_size * self.n_steps], dtype=tf.float32)],
-            average_across_timesteps=True,
-            softmax_loss_function=self.ms_error,
-            name='losses'
-        )
         with tf.name_scope('average_cost'):
-            self.cost = tf.div(
-                tf.reduce_sum(losses, name='losses_sum'),
-                self.batch_size,
-                name='average_cost')
+            self.cost = tf.reduce_mean(tf.square(tf.subtract(self.pred,tf.reshape(self.ys,[-1,self.output_size]))), name='average_cost')
             tf.summary.scalar('cost', self.cost)
-
-    def ms_error(self, labels, logits):
-        return tf.square(tf.subtract(labels, logits))
 
     def _weight_variable(self, shape, name='weights'):
         initializer = tf.random_normal_initializer(mean=0., stddev=1.,)
@@ -132,26 +111,19 @@ class LSTMRNN(object):
 
 if __name__ == '__main__':
     model = LSTMRNN(TIME_STEPS, INPUT_SIZE, OUTPUT_SIZE, CELL_SIZE, BATCH_SIZE)
-    batch_x, batch_y = inputPipeLine(["train.csv"], batchSize = BATCH_SIZE*TIME_STEPS)
     sess = tf.Session()
     merged = tf.summary.merge_all()
     writer = tf.summary.FileWriter("logs", sess.graph)
     # tf.initialize_all_variables() no long valid from
     # 2017-03-02 if using tensorflow >= 0.12
+  
     init = tf.global_variables_initializer()
     sess.run(init)
     # relocate to the local dir and run this line to view it on Chrome (http://0.0.0.0:6006/):
     # $ tensorboard --logdir='logs'
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord)
 
-    # plt.ion()
-    # plt.show()
-    for i in range(200):
-        batchx, batchy = sess.run([batch_x,batch_y])
-        batchx = batchx.reshape([BATCH_SIZE, TIME_STEPS, INPUT_SIZE])
-        batchy = batchy.reshape([BATCH_SIZE, TIME_STEPS, INPUT_SIZE])
-        # seq, res, xs = inputPipeLine('train.csv',BATCH_SIZE)
+    for i in range(20000):
+        batchx, batchy = get_batch()
         if i == 0:
             feed_dict = {
                     model.xs: batchx,
@@ -169,14 +141,8 @@ if __name__ == '__main__':
             [model.train_op, model.cost, model.cell_final_state, model.pred],
             feed_dict=feed_dict)
 
-        # plotting
-        # plt.plot(xs[0, :], res[0].flatten(), 'r', xs[0, :], pred.flatten()[:TIME_STEPS], 'b--')
-        # plt.ylim((-1.2, 1.2))
-        # plt.draw()
-        # plt.pause(0.3)
-
-        if i % 20 == 0:
-            print('cost: ', round(cost, 4))
+        if i % 100 == 0:
+            print('cost: ', cost)
             result = sess.run(merged, feed_dict)
             writer.add_summary(result, i)
-    coord.join(threads)
+        BATCH_START += TIME_STEPS

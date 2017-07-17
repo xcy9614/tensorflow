@@ -4,6 +4,7 @@ import csv
 action_info = []
 voice_info = []
 info = []
+test_voice_info = []
 def ReadActionInfo(file_name): 
     file = open('res/'+file_name)
     lines = file.readlines()
@@ -47,9 +48,21 @@ def WriteCsv():
     mywriter.writerows(info)
     csvfile.close()
 
+def ReadTestVoiceInfo(file_name):
+    file = open(file_name)
+    lines = file.readlines()
+    for line in lines:
+        line = line.replace('\n','')
+        s = json.loads(line)
+        test_voice_info.append(s)
+    file.close()
+    csvfile = open('test.csv','w',newline='')
+    mywriter = csv.writer(csvfile,dialect='excel')
+    mywriter.writerows(test_voice_info)
+    csvfile.close()
+
 for i in range(6):
     ReadActionInfo('erdongzuo'+str(i))
     ReadVoiceInfo(str(i)+'.txt')
-# ReadActionInfo('erdongzuo1')
-# ReadVoiceInfo('1.txt')
 WriteCsv()
+ReadTestVoiceInfo('data1/0.txt')

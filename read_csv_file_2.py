@@ -4,57 +4,43 @@ import tensorflow as tf
 import numpy as np
 from tensorflow.contrib import rnn
 
-def readMyFileFormat(file_name_queue):
-    reader = tf.TextLineReader()
-    key, value = reader.read(file_name_queue)
-
-    record_defaults = [[0.] for i in range(81)]
-    col = [[]for i in range(81)]
-    col = tf.decode_csv(value,record_defaults=record_defaults)
-    features = tf.stack(col[0:18])
-    label = tf.stack(col[18:81])
-
-    return features, label
-
-def inputPipeLine(fileNames = ['train.csv'], batchSize = 4, numEpochs = None):
-    file_name_queue = tf.train.string_input_producer(fileNames, num_epochs = numEpochs)
-    example, label = readMyFileFormat(file_name_queue)
-    example_batch, label_batch = tf.train.batch([example, label], batch_size = batchSize)
-    return example_batch, label_batch
-
-# featureBatch, labelBatch = inputPipeLine(["ContentNewLinkAllSample.csv"], batchSize = 4)
-# with tf.Session() as sess:
-#     # Start populating the filename queue.                                                                                                                                                                                                                                    
-#     coord = tf.train.Coordinator()
-#     threads = tf.train.start_queue_runners(coord=coord)
-
-#    # Retrieve a single instance:                                                                                                                                                                                                                                             
-#     try:
-#         #while not coord.should_stop():                                                                                                                                                                                                                                       
-#         # while True:
-#             example, label = sess.run([featureBatch, labelBatch])
-#             print(example)
-#     except tf.errors.OutOfRangeError:
-#         print ('Done reading')
-#     finally:
-#         coord.request_stop()
-
-#     coord.join(threads)
-#     sess.close()
-
 
 # Parameters
 learning_rate = 0.001
 # training_iters = 500000
 batch_size = 16 #批处理数量
-# display_step = 10
+batch_start = 0
 
 # Network Parameters
 n_input = 18
 n_output = 63
-n_steps = 30 # timesteps
+n_steps = 48 # timesteps
 n_hidden = 128 # hidden layer num of features
+col = [[] for i in range(81)]
+col = np.loadtxt('train.csv', delimiter=',')
+# final_state = lstm_cell.zero_state(batch_size, dtype = tf.float32)
 
+def get_batch():
+    global batch_size
+    global batch_start
+    global n_steps
+    global col
+    # print(len(col))
+    batch_num = int(len(col)/batch_size)
+    features = col[:,0:18]
+    labels = col[:,18:81]
+    features_batch = []
+    labels_batch = []
+    for i in range(batch_size):
+        start_num = (batch_num*i + batch_start) % len(col)
+        # print(start_num)
+        if (start_num + n_steps) >= len(col):
+            start_num = (start_num+n_steps) % len(col)
+        # print(start_num)
+        features_batch.append(features[start_num:(start_num+n_steps)])
+        labels_batch.append(labels[start_num:(start_num+n_steps)])
+    # shape => (batch_size, n_steps, n_input/n_output)
+    return features_batch, labels_batch
 
 # tf Graph input
 # shape (, 30, 18)
@@ -94,9 +80,9 @@ def RNN(x, weights, biases):
     outputs = tf.reshape(outputs,[-1,n_hidden])
     # Linear activation, using rnn inner loop last output
     # return => (batch_size * timesteps, n_output)
-    return tf.matmul(outputs, weights['out']) + biases['out']
+    return (tf.matmul(outputs, weights['out']) + biases['out']), states
 
-pred = RNN(x, weights, biases)
+pred, final_state = RNN(x, weights, biases)
 # print(pred)
 # Define loss and optimizer
 cost = tf.reduce_mean(tf.square(tf.subtract(pred,tf.reshape(y,[-1,n_output]))))
@@ -108,51 +94,55 @@ optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 # Initializing the variables
 init = tf.global_variables_initializer()
-batch_x, batch_y = inputPipeLine(["train.csv"], batchSize = batch_size*n_steps)
+# saver = tf.train.Saver(tf.global_variables())
 # Launch the graph
 with tf.Session() as sess:
     sess.run(init)
     step = 1
-    coord = tf.train.Coordinator()
-    threads = tf.train.start_queue_runners(coord=coord)
 
     # Keep training until reach max iterations
     while step < 1000:
-        # print(step)
-         
-        # print(batch_x,batch_y)
-        # print(1)
-        # if step == 1 or step == 2 or step == 3:
-        # print(batch_x.eval())
-        # print(batch_x, batch_y)
-        batchx, batchy = sess.run([batch_x,batch_y])
+        # batchx, batchy = sess.run([batch_x,batch_y])
         # print(batchx.eval())
         # print(2)
         # Reshape data to get 28 seq of 28 elements
-        batchx = batchx.reshape([batch_size, n_steps, n_input])
-        batchy = batchy.reshape([batch_size, n_steps, n_output])
-        # Run optimization op (backprop)
-        # print(2)
-        # print('******************************')
-        # print(batch_x, batchy)
+        # batchx = batchx.reshape([batch_size, n_steps, n_input])
+        # batchy = batchy.reshape([batch_size, n_steps, n_output])
         # if step == 1:
         #     feed_dict = {x: batchx, y: batchy}
         # else:
         #     feed_dict = {x: batchx, y: batchy, }
-                
+        batchx, batchy = get_batch()
         sess.run(optimizer, feed_dict={x: batchx, y: batchy})
         # print(3)
-        if step % 10 == 0:
+        if step % 100 == 0:
             # Calculate batch accuracy
             # acc = sess.run(accuracy, feed_dict={x: batchx, y: batchy})
             # Calculate batch loss
             loss = sess.run(cost, feed_dict={x: batchx, y: batchy})
             print(loss)
-            # print("Iter " + str(step*batch_size) + ", Minibatch Loss= " + \
-                #   "{:.6f}".format(loss) + ", Training Accuracy= " + \
-                #   "{:.5f}".format(acc))
+            # saver.save(sess,'train.model')
         step += 1
+        batch_start += n_steps
+
     print("Optimization Finished!")
-    coord.request_stop()
-    coord.join(threads)
-    # sess.close()
+
+    # test_x = col[:,0:18]
+    # test_y = col[:,18:81]
+    # test_x = test_x[0:10140]
+    # test_y = test_y[0:10140]
+    # test_x = tf.reshape(test_x,[-1, n_steps, n_input])
+    # test_y = tf.reshape(test_y,[-1, n_steps, n_output])
+    # testx, testy = sess.run([test_x,test_y])
+    batch_start = 0
+    testx, testy = get_batch()
+    # np.savetxt('testx.csv', testx)
+    # np.savetxt('testy.csv', testy)
+    print(testx)
+    loss = sess.run(cost, feed_dict = {x:testx, y:testy})
+    pred = sess.run(pred, feed_dict = {x:testx, y:testy})
+    print('&&&&&&&&&&&&&&&&&&&&&&'+str(batch_start))
+    print(loss)
+    # print(pred)
+    np.savetxt('predicty.csv',pred,delimiter=',')
+    sess.close()
