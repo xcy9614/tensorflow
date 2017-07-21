@@ -1,6 +1,9 @@
-data1
 *.csv
+*.txt
 *.zip
+*.rar
 res
+data1
 logs
 save
+beats

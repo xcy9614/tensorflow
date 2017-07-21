@@ -51,4 +51,4 @@ for i in range(end):
 
 	cv2.imshow('dance', img)
 	img = np.zeros((200,200,3), np.uint8)
-	cv2.waitKey(50)
+	cv2.waitKey(1)
