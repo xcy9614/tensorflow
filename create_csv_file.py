@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import json
 import csv
 from numpy import *
@@ -60,13 +61,11 @@ def ReadBeatInfo(file_name):
     beat_info.append(beat_num)
     file.close()
 
-
-
 def WriteCsv():
     for i in range(len(fin_action_info)):
         info.append(fin_voice_info[i]+fin_action_info[i])
     print('info: ' + str(matrix(info).shape))
-    csvfile = open('train.csv','w',newline='')
+    csvfile = open('train.csv','w',newline="")
     mywriter = csv.writer(csvfile,dialect='excel')
     mywriter.writerows(info)
     csvfile.close()
@@ -95,14 +94,15 @@ for k in range(len(sum_action_info)):
     sum_action_info[k]=matrix_action.tolist()
 
 for i in range(len(beat_info)):
-    for j in range(len(beat_info[i])-1):
+    le=(len(beat_info[i])-1)//10
+    for j in range(len(beat_info[i])-1-le):
         start_num = len(fin_voice_info)
         fin_action_info += sum_action_info[i][beat_info[i][j]:beat_info[i][j+1]]
         fin_voice_info += sum_voice_info[i][beat_info[i][j]:beat_info[i][j+1]]
 
         for k in range(max_length-(beat_info[i][j+1]-beat_info[i][j])):
-            action_zero = [0 for i in range(66)]
-            voice_zero = [0 for i in range(19)]
+            action_zero = [0 for k in range(66)]
+            voice_zero = [0 for k in range(19)]
             fin_action_info.append(action_zero)
             fin_voice_info.append(voice_zero)
         # 加入在动作中的帧号

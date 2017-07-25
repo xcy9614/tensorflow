@@ -11,9 +11,9 @@ TIME_STEPS = 73
 BATCH_SIZE = 18
 INPUT_SIZE = 21
 OUTPUT_SIZE = 66
-CELL_SIZE = 64
+CELL_SIZE = 32
 LR = 0.001
-EPOCH_NUM = 5
+EPOCH_NUM = 200
 
 col = np.loadtxt('train.csv', delimiter=',')
 features = col[:, 0:21]
@@ -47,7 +47,7 @@ class LSTMRNN(object):
         with tf.name_scope('inputs'):
             self.xs = tf.placeholder(tf.float32, [None, n_steps, input_size], name='xs')
             self.ys = tf.placeholder(tf.float32, [None, n_steps, output_size], name='ys')
-            self.lr = tf.placeholder(tf.float32)
+            # self.lr = tf.placeholder(tf.float32)
             # self.keep_prob = tf.placeholder(tf.float32, name='keep-prob')
         with tf.variable_scope('in_hidden'):
             self.add_input_layer()
@@ -58,7 +58,7 @@ class LSTMRNN(object):
         with tf.name_scope('cost'):
             self.compute_cost()
         with tf.name_scope('train'):
-            self.train_op = tf.train.AdamOptimizer(self.lr).minimize(self.cost)
+            self.train_op = tf.train.AdamOptimizer().minimize(self.cost)
 
     def add_input_layer(self, ):
         # masking_x = layers.Masking(mask_value=0.,)
@@ -72,15 +72,17 @@ class LSTMRNN(object):
         with tf.name_scope('Wx_plus_b'):
             l_in_y = tf.matmul(l_in_x, Ws_in) + bs_in
         # reshape l_in_y ==> (batch, n_steps, cell_size)
-        temp = tf.layers.dense(l_in_y, 6, activation=None)
-        self.l_in_y = tf.reshape(temp, [-1, self.n_steps, 6], name='2_3D')
+        temp = tf.layers.dense(l_in_y, 10, activation=None)
+        self.l_in_y = tf.reshape(temp, [-1, self.n_steps, 10], name='2_3D')
 
     def add_cell(self):
         lstm_cell = tf.contrib.rnn.BasicLSTMCell(self.cell_size, forget_bias=1.0, state_is_tuple=True)
         lstm_cell = rnn.DropoutWrapper(cell=lstm_cell, output_keep_prob=1.0)
         lstm_cell2 = tf.contrib.rnn.BasicLSTMCell(self.cell_size, forget_bias=1.0, state_is_tuple=True)
         lstm_cell2 = rnn.DropoutWrapper(cell=lstm_cell2,output_keep_prob=1.0)
-        mlstm_cell = rnn.MultiRNNCell(cells=[lstm_cell,lstm_cell2],state_is_tuple=True)
+        lstm_cell3 = tf.contrib.rnn.BasicLSTMCell(self.cell_size, forget_bias=1.0, state_is_tuple=True)
+        lstm_cell3 = rnn.DropoutWrapper(cell=lstm_cell3,output_keep_prob=1.0)
+        mlstm_cell = rnn.MultiRNNCell(cells=[lstm_cell,lstm_cell2,lstm_cell3],state_is_tuple=True)
         with tf.name_scope('initial_state'):
             self.cell_init_state = mlstm_cell.zero_state(self.batch_size, dtype=tf.float32)
         self.cell_outputs, self.cell_final_state = tf.nn.dynamic_rnn(
@@ -122,6 +124,7 @@ class LSTMRNN(object):
 if __name__ == '__main__':
     model = LSTMRNN(TIME_STEPS, INPUT_SIZE, OUTPUT_SIZE, CELL_SIZE, BATCH_SIZE)
     sess = tf.Session()
+    saver = tf.train.Saver(write_version=tf.train.SaverDef.V2)
     merged = tf.summary.merge_all()
     writer = tf.summary.FileWriter("logs", sess.graph)
     init = tf.global_variables_initializer()
@@ -132,8 +135,8 @@ if __name__ == '__main__':
         print('epoch'+str(epoch))
         
         state = sess.run([model.cell_init_state])
-        LR = LR / 2
-        print('LR'+str(LR))
+        # LR = LR / 2
+        # print('LR'+str(LR))
         for step, (batchx, batchy) in enumerate(get_batch()):
             # print("x shape: ", batchx.shape)
             # print("y shape: ", batchy.shape)
@@ -143,7 +146,7 @@ if __name__ == '__main__':
                 model.xs: batchx,
                 model.ys: batchy,
                 model.cell_init_state: state,  # use last state as the initial state for this run
-                model.lr: LR
+                # model.lr: LR
             }
             _, cost, state, pred, debug_value, mask_info, mask, yy = sess.run(
                 [model.train_op, model.cost, model.cell_final_state, model.pred, model.cell_outputs, model.masked_lossed, model.mask, model.y_temp],
@@ -165,36 +168,13 @@ if __name__ == '__main__':
         test_x = np.reshape(testx, (-1, TIME_STEPS, INPUT_SIZE))
         test_y = np.reshape(testy, (-1, TIME_STEPS, OUTPUT_SIZE))
         spred, loss = sess.run([model.pred, model.cost],
-                               feed_dict={model.xs: test_x, model.ys: test_y, model.cell_init_state: state, model.lr: LR})
+                               feed_dict={model.xs: test_x, model.ys: test_y, model.cell_init_state: state})
         # print(np.array(spred.tolist()).shape())
         print("test cost", loss)
+    saver_path = saver.save(sess, "save/model.ckpt")  # 将模型保存到save/model.ckpt文件
+    print("Model saved in file:", saver_path)
     # predict_y = []
     # for i in range(2):
     # testx, testy = get_batch(1,0,1200)
-    n_start = 0
-    testx = col[n_start:(n_start+TIME_STEPS*BATCH_SIZE), 0:21]
-    testy = col[n_start:(n_start+TIME_STEPS*BATCH_SIZE), 21:87]
-    test_x = np.reshape(testx, (-1, TIME_STEPS, INPUT_SIZE))
-    test_y = np.reshape(testy, (-1, TIME_STEPS, OUTPUT_SIZE))
-    spred, loss = sess.run([model.pred, model.cost], feed_dict={model.xs: test_x, model.ys: test_y})
-    # print(np.array(spred.tolist()).shape())
-    for j in range(len(spred)):
-        for i in range(0,66):
-            spred[j][i]=spred[j][i]*MUSIGMA_A[i][1]+MUSIGMA_A[i][0]
-    print(loss)
-    spred = np.reshape(spred, (-1, 22, 3))
-    predict_y = spred.tolist()
-        
-    xx = np.array(predict_y)
-    # print(np.shape(xx))
-    file = open('predict', 'w')
-    count = 1
-    for item in predict_y:
-        file.write(str(count) + '\n')
-        temp = json.dumps(item[0])
-        file.write(temp + '\n')
-        temp2 = json.dumps(item[1:])
-        file.write(temp2 + '\n')
-        count += 1
-        # for i in range(len(pred)):
+   
     
